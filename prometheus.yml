@@ -1,0 +1,39 @@
+# my global config
+global:
+  scrape_interval: 30s        # How often to scrape targets
+  evaluation_interval: 30s    # How often to evaluate rules
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+          # - alertmanager:9093
+
+# Load rules once and periodically evaluate them according to the global 'evaluation_interval'
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Monitor Prometheus itself
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels:
+          app: "prometheus"
+
+  # Monitor deploy-one application
+  - job_name: "deploy-one"
+    static_configs:
+      - targets: ["172.30.20.193:9100"]
+        labels:
+          app: "deploy-one"
+
+  # Monitor deploy-two application
+  - job_name: "deploy-two"
+    static_configs:
+      - targets: ["172.30.46.144:9100"]
+        labels:
+          app: "deploy-two"
