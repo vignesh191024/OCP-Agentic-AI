@@ -1,301 +1,51 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  annotations:
-    deployment.kubernetes.io/revision: "39"
-    kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{"deployment.kubernetes.io/revision":"33"},"creationTimestamp":"2025-10-23T12:13:58Z","generation":61,"managedFields":[{"apiVersion":"apps/v1","fieldsType":"FieldsV1","fieldsV1":{"f:spec":{"f:replicas":{}}},"manager":"Mozilla","operation":"Update","subresource":"scale"},{"apiVersion":"apps/v1","fieldsType":"FieldsV1","fieldsV1":{"f:spec":{"f:progressDeadlineSeconds":{},"f:revisionHistoryLimit":{},"f:selector":{},"f:strategy":{"f:rollingUpdate":{".":{},"f:maxSurge":{},"f:maxUnavailable":{}},"f:type":{}},"f:template":{"f:metadata":{"f:labels":{".":{},"f:app":{}}},"f:spec":{"f:containers":{"k:{\"name\":\"prometheus\"}":{".":{},"f:image":{},"f:imagePullPolicy":{},"f:name":{},"f:ports":{".":{},"k:{\"containerPort\":9090,\"protocol\":\"TCP\"}":{".":{},"f:containerPort":{},"f:protocol":{}}},"f:resources":{},"f:terminationMessagePath":{},"f:terminationMessagePolicy":{},"f:volumeMounts":{".":{},"k:{\"mountPath\":\"/prometheus\"}":{".":{},"f:mountPath":{},"f:name":{}}}}},"f:dnsPolicy":"ClusterFirst","f:restartPolicy":"Always","f:schedulerName":"default-scheduler","f:securityContext":{},"f:serviceAccount":"prometheus-sa","f:serviceAccountName":"prometheus-sa","f:terminationGracePeriodSeconds":{},"f:volumes":{".":{},"f:name":{},"k:{\"name\":\"prometheus-config-volume\"}":{".":{},"f:configMap":{".":{},"f:defaultMode":{},"f:name":{}}}},"k:{\"name\":\"prometheus-storage\"}":{".":{},"f:emptyDir":{},"f:name":{}}}}}}}],"name":"prometheus","namespace":"vigneshbaskar-dev","resourceVersion":"4127042724","uid":"faba0a64-6e2e-40f5-9fc0-b8cce361d2a9"},"spec":{"progressDeadlineSeconds":600,"replicas":1,"revisionHistoryLimit":10,"selector":{"matchLabels":{"app":"prometheus"}},"strategy":{"rollingUpdate":{"maxSurge":"25%","maxUnavailable":"25%"},"type":"RollingUpdate"},"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"2025-10-30T17:52:33+05:30"},"creationTimestamp":null,"labels":{"app":"prometheus"}},"spec":{"containers":[{"args":["--config.file=/etc/prometheus/prometheus.yml","--storage.tsdb.path=/prometheus","--web.enable-lifecycle"],"image":"prom/prometheus:latest","imagePullPolicy":"Always","name":"prometheus","ports":[{"containerPort":9090,"protocol":"TCP"}],"resources":{"limits":{"cpu":"200m","memory":"256Mi"},"requests":{"cpu":"100m","memory":"128Mi"}},"terminationMessagePath":"/dev/termination-log","terminationMessagePolicy":"File","volumeMounts":[{"mountPath":"/prometheus","name":"prometheus-storage"},{"mountPath":"/etc/prometheus/rules","name":"rules-volume"},{"mountPath":"/etc/prometheus/prometheus.yml","name":"prometheus-config-volume","subPath":"prometheus.yml"}]}],"dnsPolicy":"ClusterFirst","restartPolicy":"Always","schedulerName":"default-scheduler","securityContext":{},"serviceAccount":"prometheus-sa","serviceAccountName":"prometheus-sa","terminationGracePeriodSeconds":30,"volumes":[{"emptyDir":{},"name":"prometheus-storage"},{"configMap":{"defaultMode":420,"name":"prometheus-alert-rules"},"name":"rules-volume"},{"configMap":{"defaultMode":420,"name":"prometheus-config"},"name":"prometheus-config-volume"}]}}},"status":{"availableReplicas":1,"conditions":[{"lastTransitionTime":"2025-10-30T06:33:05Z","lastUpdateTime":"2025-10-30T06:33:05Z","message":"Deployment has minimum availability.","reason":"MinimumReplicasAvailable","status":"True","type":"Available"},{"lastTransitionTime":"2025-10-30T06:40:55Z","lastUpdateTime":"2025-10-30T06:40:55Z","message":"Failed to create new replica set \"prometheus-6dcfd5dbf7\": replicasets.apps \"prometheus-6dcfd5dbf7\" is forbidden: exceeded quota: for-vigneshbaskar-replicas, requested: count/replicasets.apps=1, used: count/replicasets.apps=30, limited: count/replicasets.apps=30","reason":"ReplicaSetCreateError","status":"False","type":"Progressing"}],"observedGeneration":35,"readyReplicas":1,"replicas":2,"unavailableReplicas":1,"updatedReplicas":1}}
-  creationTimestamp: "2025-10-23T12:13:58Z"
-  generation: 87
-  managedFields:
-  - apiVersion: apps/v1
-    fieldsType: FieldsV1
-    fieldsV1:
-      f:spec:
-        f:template:
-          f:spec:
-            f:containers:
-              k:{"name":"prometheus"}:
-                f:volumeMounts:
-                  k:{"mountPath":"/etc/prometheus/rules"}:
-                    .: {}
-                    f:mountPath: {}
-                    f:name: {}
-            f:volumes:
-              k:{"name":"rules-volume"}:
-                .: {}
-                f:configMap:
-                  .: {}
-                  f:defaultMode: {}
-                  f:name: {}
-                f:name: {}
-    manager: kubectl-replace
-    operation: Update
-    time: "2025-10-23T15:20:48Z"
-  - apiVersion: apps/v1
-    fieldsType: FieldsV1
-    fieldsV1:
-      f:spec:
-        f:template:
-          f:spec:
-            f:containers:
-              k:{"name":"prometheus"}:
-                f:args: {}
-    manager: kubectl-patch
-    operation: Update
-    time: "2025-10-30T09:30:52Z"
-  - apiVersion: apps/v1
-    fieldsType: FieldsV1
-    fieldsV1:
-      f:spec:
-        f:template:
-          f:metadata:
-            f:annotations:
-              .: {}
-              f:kubectl.kubernetes.io/restartedAt: {}
-    manager: kubectl-rollout
-    operation: Update
-    time: "2025-10-30T12:22:33Z"
-  - apiVersion: apps/v1
-    fieldsType: FieldsV1
-    fieldsV1:
-      f:spec:
-        f:template:
-          f:spec:
-            f:containers:
-              k:{"name":"prometheus"}:
-                f:resources:
-                  f:limits:
-                    .: {}
-                    f:cpu: {}
-                    f:memory: {}
-                  f:requests:
-                    .: {}
-                    f:cpu: {}
-                    f:memory: {}
-    manager: kubectl-set
-    operation: Update
-    time: "2025-10-30T13:42:02Z"
-  - apiVersion: apps/v1
-    fieldsType: FieldsV1
-    fieldsV1:
-      f:metadata:
-        f:annotations:
-          f:kubectl.kubernetes.io/last-applied-configuration: {}
-      f:spec:
-        f:progressDeadlineSeconds: {}
-        f:revisionHistoryLimit: {}
-        f:selector: {}
-        f:strategy:
-          f:rollingUpdate:
-            .: {}
-            f:maxSurge: {}
-            f:maxUnavailable: {}
-          f:type: {}
-        f:template:
-          f:metadata:
-            f:labels:
-              .: {}
-              f:app: {}
-          f:spec:
-            f:containers:
-              k:{"name":"prometheus"}:
-                .: {}
-                f:image: {}
-                f:imagePullPolicy: {}
-                f:name: {}
-                f:ports:
-                  .: {}
-                  k:{"containerPort":9090,"protocol":"TCP"}:
-                    .: {}
-                    f:containerPort: {}
-                    f:protocol: {}
-                f:resources: {}
-                f:terminationMessagePath: {}
-                f:terminationMessagePolicy: {}
-                f:volumeMounts:
-                  .: {}
-                  k:{"mountPath":"/prometheus"}:
-                    .: {}
-                    f:mountPath: {}
-                    f:name: {}
-            f:dnsPolicy: {}
-            f:restartPolicy: {}
-            f:schedulerName: {}
-            f:securityContext: {}
-            f:serviceAccount: {}
-            f:serviceAccountName: {}
-            f:terminationGracePeriodSeconds: {}
-            f:volumes:
-              .: {}
-              k:{"name":"prometheus-storage"}:
-                .: {}
-                f:emptyDir: {}
-                f:name: {}
-    manager: kubectl-client-side-apply
-    operation: Update
-    time: "2025-10-30T13:46:44Z"
-  - apiVersion: apps/v1
-    fieldsType: FieldsV1
-    fieldsV1:
-      f:spec:
-        f:template:
-          f:spec:
-            f:containers:
-              k:{"name":"prometheus"}:
-                f:volumeMounts:
-                  k:{"mountPath":"/etc/prometheus"}:
-                    .: {}
-                    f:mountPath: {}
-                    f:name: {}
-                  k:{"mountPath":"C:/Program Files/Git/etc/prometheus"}:
-                    .: {}
-                    f:mountPath: {}
-                    f:name: {}
-            f:volumes:
-              k:{"name":"prometheus-config"}:
-                .: {}
-                f:configMap:
-                  .: {}
-                  f:defaultMode: {}
-                  f:name: {}
-                f:name: {}
-              k:{"name":"prometheus-config-volume"}:
-                .: {}
-                f:configMap:
-                  .: {}
-                  f:defaultMode: {}
-                  f:name: {}
-                f:name: {}
-    manager: oc.exe
-    operation: Update
-    time: "2025-11-04T10:00:06Z"
-  - apiVersion: apps/v1
-    fieldsType: FieldsV1
-    fieldsV1:
-      f:metadata:
-        f:annotations:
-          .: {}
-          f:deployment.kubernetes.io/revision: {}
-      f:status:
-        f:availableReplicas: {}
-        f:conditions:
-          .: {}
-          k:{"type":"Available"}:
-            .: {}
-            f:lastTransitionTime: {}
-            f:lastUpdateTime: {}
-            f:message: {}
-            f:reason: {}
-            f:status: {}
-            f:type: {}
-          k:{"type":"Progressing"}:
-            .: {}
-            f:lastTransitionTime: {}
-            f:lastUpdateTime: {}
-            f:message: {}
-            f:reason: {}
-            f:status: {}
-            f:type: {}
-        f:observedGeneration: {}
-        f:readyReplicas: {}
-        f:replicas: {}
-        f:updatedReplicas: {}
-    manager: kube-controller-manager
-    operation: Update
-    subresource: status
-    time: "2025-11-04T10:00:20Z"
   name: prometheus
   namespace: vigneshbaskar-dev
-  resourceVersion: "4271265308"
-  uid: faba0a64-6e2e-40f5-9fc0-b8cce361d2a9
+  labels:
+    app: prometheus
 spec:
-  progressDeadlineSeconds: 600
   replicas: 1
-  revisionHistoryLimit: 10
   selector:
     matchLabels:
       app: prometheus
-  strategy:
-    rollingUpdate:
-      maxSurge: 25%
-      maxUnavailable: 25%
-    type: RollingUpdate
   template:
     metadata:
-      annotations:
-        kubectl.kubernetes.io/restartedAt: "2025-10-30T17:52:33+05:30"
-      creationTimestamp: null
       labels:
         app: prometheus
     spec:
-      containers:
-      - args:
-        - --config.file=/etc/prometheus/prometheus.yml
-        - --storage.tsdb.path=/prometheus
-        - --web.enable-lifecycle
-        image: prom/prometheus:latest
-        imagePullPolicy: Always
-        name: prometheus
-        ports:
-        - containerPort: 9090
-          protocol: TCP
-        resources:
-          limits:
-            cpu: 200m
-            memory: 256Mi
-          requests:
-            cpu: 100m
-            memory: 128Mi
-        terminationMessagePath: /dev/termination-log
-        terminationMessagePolicy: File
-        volumeMounts:
-        - mountPath: /prometheus
-          name: prometheus-storage
-        - mountPath: /etc/prometheus/rules
-          name: rules-volume
-        - mountPath: /etc/prometheus
-          name: prometheus-config
-        - mountPath: C:/Program Files/Git/etc/prometheus
-          name: prometheus-config-volume
-      dnsPolicy: ClusterFirst
-      restartPolicy: Always
-      schedulerName: default-scheduler
-      securityContext: {}
-      serviceAccount: prometheus-sa
       serviceAccountName: prometheus-sa
-      terminationGracePeriodSeconds: 30
+      containers:
+        - name: prometheus
+          image: prom/prometheus:latest
+          imagePullPolicy: Always
+          args:
+            - --config.file=/etc/prometheus/config/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --web.enable-lifecycle
+          ports:
+            - containerPort: 9090
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          volumeMounts:
+            - name: prometheus-storage
+              mountPath: /prometheus
+            - name: rules-volume
+              mountPath: /etc/prometheus/rules
+            - name: prometheus-config-volume
+              mountPath: /etc/prometheus/config   # ✅ mount folder, not file
       volumes:
-      - emptyDir: {}
-        name: prometheus-storage
-      - configMap:
-          defaultMode: 420
-          name: prometheus-alert-rules
-        name: rules-volume
-      - configMap:
-          defaultMode: 420
-          name: prometheus-config
-        name: prometheus-config
-      - configMap:
-          defaultMode: 420
-          name: prometheus-config
-        name: prometheus-config-volume
-status:
-  availableReplicas: 1
-  conditions:
-  - lastTransitionTime: "2025-11-04T08:41:09Z"
-    lastUpdateTime: "2025-11-04T10:00:06Z"
-    message: ReplicaSet "prometheus-8f75c8d" has successfully progressed.
-    reason: NewReplicaSetAvailable
-    status: "True"
-    type: Progressing
-  - lastTransitionTime: "2025-11-04T10:00:20Z"
-    lastUpdateTime: "2025-11-04T10:00:20Z"
-    message: Deployment has minimum availability.
-    reason: MinimumReplicasAvailable
-    status: "True"
-    type: Available
-  observedGeneration: 87
-  readyReplicas: 1
-  replicas: 1
-  updatedReplicas: 1
+        - name: prometheus-storage
+          emptyDir: {}
+        - name: rules-volume
+          configMap:
+            name: prometheus-alert-rules
+        - name: prometheus-config-volume
+          configMap:
+            name: prometheus-config
