@@ -1,18 +1,18 @@
 # my global config
 global:
-  scrape_interval: 30s        # How often to scrape targets
-  evaluation_interval: 30s    # How often to evaluate rules
+  scrape_interval: 30s
+  evaluation_interval: 30s
 
 # Alertmanager configuration
 alerting:
   alertmanagers:
     - static_configs:
         - targets:
-            - "alertmanager-service:9093"   # Connect to Alertmanager service in same namespace
+            - "172.30.107.173:9093"   # Using ClusterIP for Alertmanager
 
 # Load rules once and periodically evaluate them according to the global 'evaluation_interval'
 rule_files:
-  - "/etc/prometheus/rules/alert.rules.yml"   # Load custom alert rules from ConfigMap
+  - "/etc/prometheus/rules/alert.rules.yml"
 
 # Scrape configurations
 scrape_configs:

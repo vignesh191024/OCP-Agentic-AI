@@ -13,6 +13,8 @@ spec:
       labels:
         app: alertmanager
     spec:
+      securityContext:
+        fsGroup: 65534   # ensures non-root process can write to mounted volumes
       containers:
         - name: alertmanager
           image: prom/alertmanager:latest
@@ -24,7 +26,11 @@ spec:
           volumeMounts:
             - name: alertmanager-config
               mountPath: /etc/alertmanager/config
+            - name: alertmanager-storage
+              mountPath: /alertmanager
       volumes:
         - name: alertmanager-config
           configMap:
             name: alertmanager-config
+        - name: alertmanager-storage
+          emptyDir: {}    # ephemeral writable storage (fixes permission denied)

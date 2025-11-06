@@ -1,0 +1,20 @@
+groups:
+- name: pod-monitoring
+  rules:
+  - alert: PodDown
+    expr: up == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Pod {{ $labels.app }} is down"
+      description: "Pod {{ $labels.app }} with instance {{ $labels.instance }} is not reporting metrics for more than 1 minute."
+
+  - alert: HighCPUUsage
+    expr: rate(process_cpu_seconds_total[1m]) > 0.5
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High CPU usage in {{ $labels.app }}"
+      description: "Container in {{ $labels.app }} (instance {{ $labels.instance }}) is using more than 50% CPU for 2 minutes."
