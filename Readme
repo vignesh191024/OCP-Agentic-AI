@@ -1,1 +1,25 @@
+OCP Pods: Application workloads deployed in OCP.
 
+Prometheus: For metrics collection from OCP pods.
+
+Grafana: For visualization of metrics.
+
+Alertmanager: To receive alerts from Prometheus and route them to receivers.
+
+Agentic AI: To automatically act on alerts and perform tasks.
+
+
+
+OCP Pods
+   │
+   ▼
+Prometheus (Scrapes metrics from pods)
+   │
+   ▼
+Alertmanager (Receives alerts from Prometheus)
+   │
+   ▼
+Webhook Receiver → Agentic AI (Automates manual tasks)
+   │
+   ▼
+Grafana (Optional visualization of metrics & alerts)
