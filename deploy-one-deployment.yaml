@@ -13,6 +13,7 @@ spec:
       labels:
         app: deploy-one
     spec:
+      serviceAccountName: default
       volumes:
         - name: applogs
           emptyDir: {}
@@ -20,6 +21,7 @@ spec:
           configMap:
             name: promtail-config
       containers:
+        # 🧠 Main Application Container
         - name: app
           image: prom/node-exporter:latest
           ports:
@@ -30,20 +32,39 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              # Start Node Exporter in the background
+              # Start Node Exporter in background
               /bin/node_exporter &
-              # Log generator
+              
+              # Log generator - outputs to both stdout and file (real pod logs)
               while true; do
-                echo "$(date) Hello from deploy-one" >> /var/log/app-logs/app.log;
-                sleep 5;
+                msg="$(date) Hello from deploy-one"
+                echo "$msg" | tee -a /var/log/app-logs/app.log
+                sleep 5
               done
 
+        # 🚀 Promtail Sidecar Container
         - name: promtail
           image: grafana/promtail:3.1.0
           args:
             - -config.file=/etc/promtail/config/promtail.yaml
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           volumeMounts:
             - name: promtail-config
               mountPath: /etc/promtail/config
             - name: applogs
               mountPath: /var/log/app-logs
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

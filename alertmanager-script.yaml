@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fetch-alerted-pod-logs
+  namespace: vigneshbaskar-dev
+spec:
+  template:
+    spec:
+      serviceAccountName: default
+      restartPolicy: Never
+      containers:
+        - name: fetch-logs
+          image: quay.io/openshift/origin-cli:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - /scripts/alertmanager-pod-logs.sh "$APP_LABEL"
+          env:
+            - name: APP_LABEL
+              value: "deploy-one"  # This value will be replaced dynamically by Alertmanager webhook
+          volumeMounts:
+            - name: applogs
+              mountPath: /var/log/app-logs
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: applogs
+          emptyDir: {}
+        - name: scripts
+          configMap:
+            name: alertmanager-script
