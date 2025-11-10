@@ -1,0 +1,4 @@
+flask
+requests
+slack_sdk
+openai

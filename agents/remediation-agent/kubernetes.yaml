@@ -1,0 +1,60 @@
+# --- Service Account for the agent ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: remediation-agent-sa
+---
+# --- Role Binding to allow pod deletion ---
+# This gives the Service Account 'edit' rights in the *current* project.
+# 'edit' role can read/write most objects, including deleting pods.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: remediation-agent-edit
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+subjects:
+  - kind: ServiceAccount
+    name: remediation-agent-sa
+---
+# --- Service for internal traffic ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: remediation-agent-svc
+spec:
+  selector:
+    app: remediation-agent
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+---
+# --- Deployment for the agent ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: remediation-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: remediation-agent
+  template:
+    metadata:
+      labels:
+        app: remediation-agent
+    spec:
+      # Use the Service Account we created
+      serviceAccountName: remediation-agent-sa
+      containers:
+        - name: remediation-agent
+          # Project name 'vigneshbaskar-dev' is now filled in
+          image: image-registry.openshift-image-registry.svc:5000/vigneshbaskar-dev/remediation-agent:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: REFLECTION_AGENT_URL
+              value: "http://reflection-agent-svc:8080/log"

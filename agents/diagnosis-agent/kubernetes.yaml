@@ -1,0 +1,67 @@
+# --- Service for internal traffic ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: diagnosis-agent-svc
+spec:
+  selector:
+    app: diagnosis-agent
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+---
+# --- Deployment for the agent ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: diagnosis-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: diagnosis-agent
+  template:
+    metadata:
+      labels:
+        app: diagnosis-agent
+    spec:
+      containers:
+        - name: diagnosis-agent
+          # Project name 'vigneshbaskar-dev' is now filled in
+          image: image-registry.openshift-image-registry.svc:5000/vigneshbaskar-dev/diagnosis-agent:latest
+          ports:
+            - containerPort: 8080
+          env:
+            # Assumes a secret named 'ai-secrets' exists
+            - name: SLACK_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ai-secrets
+                  key: SLACK_BOT_TOKEN
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ai-secrets
+                  key: OPENAI_API_KEY
+            # Assumes a configmap named 'agent-config' exists
+            - name: SLACK_CHANNEL
+              valueFrom:
+                configMapKeyRef:
+                  name: agent-config
+                  key: SLACK_CHANNEL
+            - name: REMEDIATION_AGENT_URL
+              value: "http://remediation-agent-svc:8080/remediate"
+          # Liveness and Readiness Probes
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
