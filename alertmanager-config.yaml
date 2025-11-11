@@ -5,21 +5,16 @@ route:
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 1h
-  # 1. THIS IS THE CHANGE:
-  # The default receiver is now 'ai_diagnostics'
+  # 1. The default receiver is now 'ai_diagnostics'
   receiver: 'ai_diagnostics' 
 receivers:
-  # 2. THIS IS THE NEW RECEIVER
-  # It sends all alerts to our new Python agent
+  # 2. This new receiver sends alerts to our Python agent
   - name: 'ai_diagnostics'
     webhook_configs:
       - url: 'http://diagnosis-agent-svc:8080/alert'
         send_resolved: true
 
-  # 3. This is your ORIGINAL receiver from the repo.
-  # We keep it here. You could add routing rules to send
-  # some alerts here and some to the AI, but for now
-  # all alerts will go to the AI agent by default.
+  # 3. This is your original receiver, kept as a backup.
   - name: 'slack-notifications'
     slack_configs:
     - api_url: '[https://hooks.slack.com/services/](https://hooks.slack.com/services/)...' # (This is your original placeholder)

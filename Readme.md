@@ -1,59 +1,4 @@
-OCP Pods: Application workloads deployed in OCP.
-
-Prometheus: For metrics collection from OCP pods.
-
-Grafana: For visualization of metrics.
-
-Alertmanager: To receive alerts from Prometheus and route them to receivers.
-
-Agentic AI: To automatically act on alerts and perform tasks.
-
-
-
-OCP Pods
-   │
-   ▼
-Prometheus (Scrapes metrics from pods)
-   │
-   ▼
-Alertmanager (Receives alerts from Prometheus)
-   │
-   ▼
-Webhook Receiver → Agentic AI (Automates manual tasks)
-   │
-   ▼
-Grafana (Optional visualization of metrics & alerts)
-
------
-
-# OCP Agentic AI Self-Healing Project
-
-This project implements an agentic AI workflow on OpenShift to provide self-healing capabilities. It uses a multi-agent system (Diagnosis, Remediation, Reflection) to analyze Prometheus alerts, propose solutions via an LLM, and execute fixes (like restarting pods) after human approval via Slack.
-
-This guide provides the steps to deploy and configure the agents on your OpenShift cluster.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-1.  An OpenShift project. This guide is pre-configured for: `vigneshbaskar-dev`
-2.  A Slack Bot Token. This guide is pre-configured for: `xoxb-9864777158599-9876928775285-JgWbaGmqnrH0eH5tucgKX8Us`
-3.  A Slack Channel. This guide is pre-configured for: `#openshift-alerts`
-4.  An OpenAI API Key. You will need to provide this.
-
------
-
-## Step 1: Configure Alertmanager
-
-The first step is to tell your existing Alertmanager to send alerts to the new AI agents.
-
-1.  **Edit the `alert-manager-config.yml` file** in the root of this repository.
-2.  Replace the entire contents of the file with the code below. This adds a new `ai_diagnostics` receiver and sets it as the default.
-
-**Complete File: `alert-manager-config.yml`**
-
-```yaml
-global:
+OCP Agentic AI Self-Healing ProjectThis project implements an agentic AI workflow on OpenShift to provide self-healing capabilities. It uses a multi-agent system (Diagnosis, Remediation, Reflection) to analyze Prometheus alerts, propose solutions via Llama 3, and execute fixes (like restarting pods) after human approval via Slack.This guide provides the steps to deploy and configure the agents on your OpenShift cluster.PrerequisitesBefore you begin, you must have:An OpenShift project. This guide is pre-configured for: vigneshbaskar-devA Slack Channel. This guide is pre-configured for: #openshift-alertsThe oc (OpenShift CLI) and git command-line tools installed.Step 1: Get API Keys & TokensYou will need two secret keys to run this project.1.A: Get Your Groq (Llama) API KeyWe are using Groq to get free, high-speed access to the Llama 3 model.Go to groq.com and sign up for a free account.Once logged in, click on your account in the top-right and select "API Keys".Click "Create API Key".Give it a name (e.g., openshift-agent) and click "Create".Copy the key immediately. It will start with gsk_.... You will use this in Step 3.1.B: Get Your Slack Bot TokenYou need to create a Slack App to act as your bot.Go to api.slack.com/apps and click "Create New App".Choose "From scratch".Name your app (e.g., OpenShift Agent) and select your test workspace.In the left sidebar, click on "OAuth & Permissions".Scroll down to the "Scopes" section.Under "Bot Token Scopes", click "Add an OAuth Scope" and add:chat:write: To post messages.chat:write.public: To post in public channels.Scroll back to the top and click "Install to Workspace", then click "Allow".Copy the "Bot User OAuth Token". It will start with xoxb-.... You will use this in Step 3.Finally, go to your #openshift-alerts channel in Slack and invite your bot by typing /invite @OpenShift Agent (or whatever you named your app).Step 2: Configure AlertmanagerThis step tells your existing Alertmanager to send all alerts to your new AI agent.Ensure your alert-manager-config.yml file (in the root of this repo) is updated with the code below. This adds a new ai_diagnostics receiver and sets it as the default.File: alert-manager-config.ymlglobal:
   resolve_timeout: 5m
 route:
   group_by: ['alertname']
@@ -72,7 +17,7 @@ receivers:
   # 3. This is your original receiver, kept as a backup.
   - name: 'slack-notifications'
     slack_configs:
-    - api_url: 'https://hooks.slack.com/services/...' # (This is your original placeholder)
+    - api_url: '[https://hooks.slack.com/services/](https://hooks.slack.com/services/)...' # (This is your original placeholder)
       channel: '#vignesh-dev'
       send_resolved: true
 
@@ -82,44 +27,18 @@ inhibit_rules:
   target_match:
     severity: 'warning'
   equal: ['alertname', 'dev', 'instance']
-```
-
-3.  **Apply the configuration change** to your cluster. This command updates the `alertmanager-main` ConfigMap from your local file:
-    ```bash
-    # Run this from the root of your OCP-Agentic-AI repository
-    oc create configmap alertmanager-main --from-file=alert-manager-config.yml -o yaml --dry-run=client | oc replace -f -
-    ```
-4.  The Alertmanager pod will automatically reload the new configuration.
-
------
-
-## Step 2: Create Secrets and ConfigMaps
-
-The agents need your API keys and Slack channel name. Run these commands in your WSL terminal.
-
-```bash
-# Create the secret for your API keys
-# I've added your Slack token. You just need to add your OpenAI key.
+Apply the configuration change to your cluster. This command updates the alertmanager-main ConfigMap from your local file:# Run this from the root of your OCP-Agentic-AI repository
+oc create configmap alertmanager-main --from-file=alert-manager-config.yml -o yaml --dry-run=client | oc replace -f -
+The Alertmanager pod will automatically reload the new configuration.Step 3: Create Secrets and ConfigMapsNow, use the keys you generated in Step 1 to create the Kubernetes secrets.# Create the secret for your API keys
+# Replace the placeholders with the keys you just copied
 oc create secret generic ai-secrets \
-  --from-literal=OPENAI_API_KEY='sk-...' \
-  --from-literal=SLACK_BOT_TOKEN='xoxb-9864777158599-9876928775285-JgWbaGmqnrH0eH5tucgKX8Us'
+  --from-literal=GROQ_API_KEY='gsk_YOUR_KEY_HERE' \
+  --from-literal=SLACK_BOT_TOKEN='xoxb_YOUR_TOKEN_HERE'
 
-# Create the ConfigMap for your Slack channel
-# I've added your '#openshift-alerts' channel.
+# Create the ConfigMap for your Slack channel (this is unchanged)
 oc create configmap agent-config \
   --from-literal=SLACK_CHANNEL='#openshift-alerts'
-```
-
------
-
-## Step 3: Build and Deploy Agents
-
-Now, build and deploy the three agents. The `kubernetes.yaml` files in the repo are already pre-filled with your project name (`vigneshbaskar-dev`).
-
-Run these commands from the **root** of your `OCP-Agentic-AI` repository.
-
-```bash
-# === Build and Deploy Diagnosis Agent ===
+Step 4: Build and Deploy AgentsThis step builds your agent code and deploys it to OpenShift. The kubernetes.yaml files in the repo are already pre-filled with your project name (vigneshbaskar-dev).Run these commands from the root of your OCP-Agentic-AI repository.# === Build and Deploy Diagnosis Agent ===
 cd agents/diagnosis-agent
 
 oc new-build --name=diagnosis-agent --binary --strategy=docker
@@ -148,35 +67,6 @@ oc apply -f kubernetes.yaml
 
 # Go back to the root
 cd ../..
-```
-
------
-
-## Step 4: Configure Slack App for Interactivity
-
-The final step is to tell Slack where to send the "Approve" / "Deny" button clicks.
-
-1.  Expose the `diagnosis-agent` service with a public route:
-
-    ```bash
-    oc expose svc/diagnosis-agent-svc
-    ```
-
-2.  Get the new public URL for your route:
-
-    ```bash
-    oc get route diagnosis-agent-svc -o jsonpath='{.spec.host}'
-    ```
-
-3.  Go to your Slack App's configuration page (at `api.slack.com`).
-
-4.  Click on **"Interactivity & Shortcuts"** in the sidebar.
-
-5.  Turn **Interactivity ON**.
-
-6.  In the **"Request URL"** box, paste your public URL from Step 2, and add `/slack-interactive` at the end.
-    *Example: `https://diagnosis-agent-svc-vigneshbaskar-dev.apps.sandbox-m2.ll9k.p1.openshiftapps.com/slack-interactive`*
-
-7.  Save your changes.
-
-Your system is now fully deployed. When Prometheus fires an alert, it will trigger the full AI diagnosis and remediation workflow.
+Step 5: Configure Slack App for InteractivityThe final step is to tell Slack where to send the "Approve" / "Deny" button clicks.Expose the diagnosis-agent service with a public route:oc expose svc/diagnosis-agent-svc
+Get the new public URL for your route:oc get route diagnosis-agent-svc -o jsonpath='{.spec.host}'
+Go to your Slack App's configuration page at api.slack.com.Click on "Interactivity & Shortcuts" in the sidebar.Turn Interactivity ON.In the "Request URL" box, paste your public URL from Step 2, and add /slack-interactive at the end.Example: https://diagnosis-agent-svc-vigneshbaskar-dev.apps.sandbox-m2.ll9k.p1.openshiftapps.com/slack-interactiveSave your changes.Your system is now fully deployed. When Prometheus fires an alert, it will trigger the full AI diagnosis and remediation workflow using Llama 3.

@@ -39,11 +39,12 @@ spec:
                 secretKeyRef:
                   name: ai-secrets
                   key: SLACK_BOT_TOKEN
-            - name: OPENAI_API_KEY
+            # UPDATED: Use Groq API Key
+            - name: GROQ_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: ai-secrets
-                  key: OPENAI_API_KEY
+                  key: GROQ_API_KEY
             # Assumes a configmap named 'agent-config' exists
             - name: SLACK_CHANNEL
               valueFrom:

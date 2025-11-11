@@ -4,35 +4,37 @@ import json
 from flask import Flask, request, jsonify
 from slack_sdk import WebClient
 from slack_sdk.models.blocks import SectionBlock, ActionsBlock, ButtonElement
-from openai import OpenAI
+from openai import OpenAI # We still use the OpenAI library!
 
 # --- Configuration ---
 # Load from environment variables
 SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
 SLACK_CHANNEL = os.environ.get("SLACK_CHANNEL")
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+# UPDATED: Use GROQ_API_KEY
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY") 
 # Internal OpenShift service URLs
 REMEDIATION_AGENT_URL = os.environ.get("REMEDIATION_AGENT_URL", "http://remediation-agent-svc:8080/remediate")
 
 # --- Clients ---
 app = Flask(__name__)
 slack_client = WebClient(token=SLACK_BOT_TOKEN)
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
+
+# UPDATED: Initialize the client to point to Groq's API
+openai_client = OpenAI(
+    api_key=GROQ_API_KEY,
+    base_url="[https://api.groq.com/openai/v1](https://api.groq.com/openai/v1)" 
+)
 
 # --- Diagnosis Logic ---
 def get_diagnosis_from_llm(alert_data):
     """
-    Queries OpenAI to get a diagnosis and a remediation plan.
+    Queries Groq's Llama 3 model to get a diagnosis and a remediation plan.
     """
     try:
         alert_name = alert_data.get('commonLabels', {}).get('alertname', 'Unknown Alert')
         pod_name = alert_data.get('commonLabels', {}).get('pod', 'N/A')
         namespace = alert_data.get('commonLabels', {}).get('namespace', 'N/A')
         summary = alert_data.get('commonAnnotations', {}).get('summary', 'No summary.')
-
-        # Future Enhancement: Query Loki for logs
-        # lokl_query = f'{{pod="{pod_name}", namespace="{namespace}"}}'
-        # logs = "Example logs..." 
 
         prompt = f"""
         Analyze the following Prometheus alert and provide a brief root cause analysis
@@ -56,7 +58,8 @@ def get_diagnosis_from_llm(alert_data):
         """
 
         response = openai_client.chat.completions.create(
-            model="gpt-4o-mini", # Using a cost-effective and fast model
+            # UPDATED: Use a Llama 3 model
+            model="llama3-8b-8192", 
             messages=[
                 {"role": "system", "content": "You are an expert OpenShift SRE and diagnostics assistant."},
                 {"role": "user", "content": prompt}
@@ -227,4 +230,3 @@ def slack_interactive_endpoint():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
-
