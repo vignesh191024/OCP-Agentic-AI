@@ -104,7 +104,9 @@ Then apply the configuration to your cluster:
 
 ```bash
 # Run from the repo root
-oc create configmap alertmanager-main --from-file=alert-manager-config.yml -o yaml --dry-run=client | oc replace -f -
+oc create configmap alertmanager-main \
+  --from-file=alertmanager.yml=alertmanager-config.yaml \
+  -o yaml --dry-run=client | oc apply -f -
 ```
 
 The Alertmanager pod will automatically reload the new configuration.
