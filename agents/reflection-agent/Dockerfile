@@ -7,6 +7,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY main.py .
 
+# --- THIS IS THE FIX ---
+ENV FLASK_APP=main.py
+# -----------------------
+
 EXPOSE 8080
 
 # Run as non-root user

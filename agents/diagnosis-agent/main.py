@@ -1,41 +1,35 @@
 import os
 import requests
 import json
+import threading
 from flask import Flask, request, jsonify
 from slack_sdk import WebClient
 from slack_sdk.models.blocks import SectionBlock, ActionsBlock, ButtonElement
-from openai import OpenAI # We still use the OpenAI library!
+from openai import OpenAI
 
 # --- Configuration ---
-# Load from environment variables
 SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
 SLACK_CHANNEL = os.environ.get("SLACK_CHANNEL")
-# UPDATED: Use GROQ_API_KEY
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY") 
-# Internal OpenShift service URLs
 REMEDIATION_AGENT_URL = os.environ.get("REMEDIATION_AGENT_URL", "http://remediation-agent-svc:8080/remediate")
 
 # --- Clients ---
 app = Flask(__name__)
 slack_client = WebClient(token=SLACK_BOT_TOKEN)
-
-# UPDATED: Initialize the client to point to Groq's API
 openai_client = OpenAI(
     api_key=GROQ_API_KEY,
-    base_url="[https://api.groq.com/openai/v1](https://api.groq.com/openai/v1)" 
+    base_url="https://api.groq.com/openai/v1" 
 )
 
 # --- Diagnosis Logic ---
 def get_diagnosis_from_llm(alert_data):
-    """
-    Queries Groq's Llama 3 model to get a diagnosis and a remediation plan.
-    """
     try:
         alert_name = alert_data.get('commonLabels', {}).get('alertname', 'Unknown Alert')
         pod_name = alert_data.get('commonLabels', {}).get('pod', 'N/A')
         namespace = alert_data.get('commonLabels', {}).get('namespace', 'N/A')
         summary = alert_data.get('commonAnnotations', {}).get('summary', 'No summary.')
 
+        # Strict prompt to ensure the AI only chooses valid actions
         prompt = f"""
         Analyze the following Prometheus alert and provide a brief root cause analysis
         and a simple, JSON-formatted remediation plan for an OpenShift cluster.
@@ -44,6 +38,10 @@ def get_diagnosis_from_llm(alert_data):
         Pod: {pod_name}
         Namespace: {namespace}
         Summary: {summary}
+
+        IMPORTANT: The only allowed actions are "restart_pod" or "none".
+        If the pod needs fixing, use "restart_pod".
+        If this is a test or unknown, force the action to be "restart_pod" for demonstration purposes.
 
         Example Remediation JSON:
         {{
@@ -58,8 +56,7 @@ def get_diagnosis_from_llm(alert_data):
         """
 
         response = openai_client.chat.completions.create(
-            # UPDATED: Use a Llama 3 model
-            model="llama3-8b-8192", 
+            model="llama-3.3-70b-versatile", 
             messages=[
                 {"role": "system", "content": "You are an expert OpenShift SRE and diagnostics assistant."},
                 {"role": "user", "content": prompt}
@@ -68,7 +65,6 @@ def get_diagnosis_from_llm(alert_data):
         
         content = response.choices[0].message.content
         
-        # Parse the LLM's structured response
         analysis = "Could not parse LLM analysis."
         plan_json_str = "{}"
 
@@ -76,7 +72,7 @@ def get_diagnosis_from_llm(alert_data):
             analysis_part = content.split("Analysis:")[1].split("Plan:")[0].strip()
             plan_part = content.split("Plan:")[1].strip()
             
-            # Clean up the JSON string (LLMs sometimes add markdown)
+            # Cleanup markdown code blocks if present
             if plan_part.startswith("```json"):
                 plan_part = plan_part[7:]
             if plan_part.endswith("```"):
@@ -92,14 +88,9 @@ def get_diagnosis_from_llm(alert_data):
         return f"Error during analysis: {e}", None
 
 def send_slack_approval(alert_data, analysis, remediation_plan):
-    """
-    Sends an interactive message to Slack for remediation approval.
-    """
     try:
         alert_name = alert_data.get('commonLabels', {}).get('alertname', 'Unknown Alert')
         pod_name = alert_data.get('commonLabels', {}).get('pod', 'N/A')
-        
-        # Serialize the plan to send with the button's 'value' field
         action_value = json.dumps(remediation_plan)
 
         blocks = [
@@ -119,7 +110,7 @@ def send_slack_approval(alert_data, analysis, remediation_plan):
                         text="Approve Remediation",
                         style="primary",
                         action_id="approve_remediation",
-                        value=action_value, # Send the full plan
+                        value=action_value,
                         confirm={
                             "title": "Confirm Action",
                             "text": f"Are you sure you want to run: {remediation_plan.get('action')} on {pod_name}?",
@@ -145,26 +136,61 @@ def send_slack_approval(alert_data, analysis, remediation_plan):
     except Exception as e:
         print(f"Error sending Slack message: {e}")
 
+# --- Background Worker for Slack Interactivity ---
+def process_interaction_background(payload):
+    """
+    This runs in a separate thread to prevent Slack timeouts (503 errors).
+    """
+    try:
+        response_url = payload.get("response_url")
+        action = payload["actions"][0]
+        action_id = action.get("action_id")
+
+        if action_id == "approve_remediation":
+            remediation_plan = json.loads(action.get("value"))
+            print(f"Remediation approved. Plan: {remediation_plan}")
+            
+            try:
+                # Call the Remediation Agent
+                res = requests.post(REMEDIATION_AGENT_URL, json=remediation_plan, timeout=30)
+                res.raise_for_status()
+                
+                # Update Slack message to indicate success
+                requests.post(response_url, json={
+                    "replace_original": "true",
+                    "text": f":white_check_mark: Remediation Approved. Action '{remediation_plan.get('action')}' sent to Remediation Agent."
+                })
+            
+            except requests.exceptions.RequestException as e:
+                print(f"Error calling Remediation Agent: {e}")
+                # Update Slack message to indicate failure
+                requests.post(response_url, json={
+                    "replace_original": "true",
+                    "text": f":x: Error sending approval to Remediation Agent: {e}"
+                })
+
+        elif action_id == "deny_remediation":
+            print("Remediation denied by user.")
+            requests.post(response_url, json={
+                "replace_original": "true",
+                "text": ":no_entry_sign: Remediation Denied. No action taken."
+            })
+
+    except Exception as e:
+        print(f"Error in background thread: {e}")
+
 # --- API Endpoints ---
 @app.route('/alert', methods=['POST'])
 def alert_webhook():
-    """
-    Receives alerts from Alertmanager.
-    This is the main entry point.
-    """
     try:
         data = request.json
         print(f"Received alert: {json.dumps(data, indent=2)}")
 
         if data.get('status') == 'firing':
-            # Process the first alert in the batch
             alert = data['alerts'][0]
-            
-            # 1. Get Diagnosis
             analysis, remediation_plan = get_diagnosis_from_llm(alert)
             
             if remediation_plan:
-                # 2. Send for Manual Approval
                 send_slack_approval(alert, analysis, remediation_plan)
             else:
                 print(f"No remediation plan generated for {alert.get('commonLabels')}")
@@ -177,56 +203,26 @@ def alert_webhook():
 @app.route('/slack-interactive', methods=['POST'])
 def slack_interactive_endpoint():
     """
-    Receives interactive events from Slack (e.g., button clicks).
+    Receives interactive events from Slack.
+    Spawns a background thread and returns 200 OK immediately.
     """
     try:
-        # Slack sends data as form-encoded 'payload'
         payload = json.loads(request.form["payload"])
         
-        # Check if it's a block action (button click)
-        if payload.get("type") == "block_actions":
-            action = payload["actions"][0]
-            action_id = action.get("action_id")
-            
-            response_url = payload.get("response_url")
-            
-            if action_id == "approve_remediation":
-                # User clicked "Approve"
-                remediation_plan = json.loads(action.get("value"))
-                
-                print(f"Remediation approved. Plan: {remediation_plan}")
-                
-                # Send approval to Remediation Agent
-                try:
-                    res = requests.post(REMEDIATION_AGENT_URL, json=remediation_plan, timeout=10)
-                    res.raise_for_status()
-                    
-                    # Update original Slack message to show completion
-                    requests.post(response_url, json={
-                        "replace_original": "true",
-                        "text": f":white_check_mark: Remediation Approved. Action '{remediation_plan.get('action')}' sent to Remediation Agent."
-                    })
-                
-                except requests.exceptions.RequestException as e:
-                    print(f"Error calling Remediation Agent: {e}")
-                    requests.post(response_url, json={
-                        "replace_original": "true",
-                        "text": f":x: Error sending approval to Remediation Agent: {e}"
-                    })
+        # Spawn background thread to handle the logic
+        thread = threading.Thread(target=process_interaction_background, args=(payload,))
+        thread.start()
 
-            elif action_id == "deny_remediation":
-                # User clicked "Deny"
-                print("Remediation denied by user.")
-                # Update original Slack message
-                requests.post(response_url, json={
-                    "replace_original": "true",
-                    "text": ":no_entry_sign: Remediation Denied. No action taken."
-                })
-
+        # Respond to Slack IMMEDIATELY
         return "", 200
     except Exception as e:
         print(f"Error in /slack-interactive endpoint: {e}")
         return "", 500
 
+@app.route('/', methods=['GET'])
+def health_check():
+    return jsonify({"status": "healthy"}), 200
+
 if __name__ == '__main__':
+    print("--- STARTING DIAGNOSIS AGENT V2 (THREADED) ---", flush=True)
     app.run(host='0.0.0.0', port=8080)
