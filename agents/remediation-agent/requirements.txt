@@ -1,3 +1,4 @@
 flask
 requests
 kubernetes
+slack_sdk

@@ -1,119 +1,94 @@
 import os
-import json
 import requests
+import threading
 from flask import Flask, request, jsonify
 from kubernetes import client, config
+from slack_sdk import WebClient
+from slack_sdk.models.blocks import SectionBlock, HeaderBlock
 
 # --- Configuration ---
 REFLECTION_AGENT_URL = os.environ.get("REFLECTION_AGENT_URL", "http://reflection-agent-svc:8080/log")
+SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
+SLACK_CHANNEL = os.environ.get("SLACK_CHANNEL")
 
 # --- Clients ---
 app = Flask(__name__)
+slack_client = WebClient(token=SLACK_BOT_TOKEN)
 
-# --- Kubernetes Client Setup ---
+# --- Kubernetes Client ---
 def load_kube_config():
-    """
-    Loads Kubernetes config. In-cluster config is used when running inside a pod,
-    otherwise, it falls back to the local kubeconfig file for testing.
-    """
     try:
         config.load_incluster_config()
-        print("Loaded in-cluster Kubernetes config.")
-    except config.ConfigException:
-        try:
-            config.load_kube_config()
-            print("Loaded local Kubernetes config (fallback).")
-        except config.ConfigException:
-            print("Could not load any Kubernetes config.")
-            return None
-    return client.CoreV1Api()
+    except:
+        print("Warning: Could not load in-cluster config (local dev?)")
 
-core_v1_api = load_kube_config()
+load_kube_config()
+core_v1 = client.CoreV1Api()
+apps_v1 = client.AppsV1Api()
 
-# --- Remediation Actions ---
-def delete_pod(pod_name, namespace, reason):
-    """
-    Deletes a specific pod in a specific namespace.
-    This effectively "restarts" the pod if it's managed by a Deployment.
-    """
-    if not core_v1_api:
-        return False, "Kubernetes API client not initialized."
-        
-    print(f"Attempting to delete pod (to restart): {pod_name} in namespace: {namespace} for reason: {reason}")
+# --- Helper: Slack Notification ---
+def notify_slack_start(action, target):
     try:
-        core_v1_api.delete_namespaced_pod(
-            name=pod_name,
-            namespace=namespace,
-            body=client.V1DeleteOptions()
-        )
-        success_msg = f"Successfully deleted pod {pod_name} in {namespace} to trigger restart."
-        print(success_msg)
-        return True, success_msg
-    except client.ApiException as e:
-        error_msg = f"Error deleting pod: {e}"
-        print(error_msg)
-        return False, error_msg
-
-# --- Logging to Reflection Agent ---
-def log_to_reflection_agent(plan, success, message):
-    """
-    Sends the result of the remediation to the Reflection Agent.
-    """
-    try:
-        log_data = {
-            "remediation_plan": plan,
-            "status": "success" if success else "failure",
-            "message": message
-        }
-        requests.post(REFLECTION_AGENT_URL, json=log_data, timeout=5)
+        blocks = [
+            HeaderBlock(text=":tools: Remediation Agent"),
+            SectionBlock(text=f"I received the order. Executing `{action}` on `{target}` now...")
+        ]
+        slack_client.chat_postMessage(channel=SLACK_CHANNEL, blocks=blocks, text="Remediation Started")
     except Exception as e:
-        print(f"Error logging to Reflection Agent: {e}")
+        print(f"Slack Error: {e}")
+
+# --- Tools ---
+def delete_pod(name, namespace):
+    print(f"Restarting pod {name} in {namespace}...")
+    core_v1.delete_namespaced_pod(name=name, namespace=namespace)
+    return True, f"Deleted pod {name}"
+
+def scale_up(name, namespace):
+    print(f"Scaling up deployment {name} in {namespace}...")
+    scale = apps_v1.read_namespaced_deployment_scale(name, namespace)
+    current_replicas = scale.spec.replicas
+    scale.spec.replicas += 1
+    apps_v1.replace_namespaced_deployment_scale(name, namespace, scale)
+    return True, f"Scaled {name} from {current_replicas} to {scale.spec.replicas} replicas"
+
+# --- Main Logic ---
+def perform_remediation(plan):
+    action = plan.get("action")
+    ns = plan.get("namespace")
+    target = plan.get("pod_name") if action == "restart_pod" else plan.get("deployment_name")
+
+    # 1. Announce to Slack
+    notify_slack_start(action, target)
+
+    # 2. Do the work
+    try:
+        if action == "restart_pod":
+            success, msg = delete_pod(target, ns)
+        elif action == "scale_up":
+            success, msg = scale_up(target, ns)
+        else:
+            success, msg = True, "No action needed (Dry Run)"
+    except Exception as e:
+        success, msg = False, str(e)
+
+    # 3. Handoff to Reflection Agent
+    # IMPORTANT: We pass the plan (which now contains diagnosis_report) forward!
+    print(f"Work done. Handing off to Reflection Agent: {msg}")
+    try:
+        requests.post(REFLECTION_AGENT_URL, json={
+            "remediation_plan": plan, 
+            "status": "success" if success else "failure", 
+            "message": msg
+        }, timeout=5)
+    except Exception as e:
+        print(f"Failed to call Reflection Agent: {e}")
 
 # --- API Endpoints ---
 @app.route('/remediate', methods=['POST'])
 def remediate_endpoint():
-    """
-    Receives remediation plan and executes it.
-    """
-    try:
-        plan = request.json
-        print(f"Received remediation plan: {plan}")
-        
-        action = plan.get("action")
-        pod_name = plan.get("pod_name")
-        namespace = plan.get("namespace")
-        reason = plan.get("reason", "No reason provided.")
-        
-        success = False
-        message = "No action taken."
-
-        if action == "restart_pod":
-            if pod_name and namespace:
-                # The 'delete_pod' function is the technical implementation of 'restart_pod'
-                success, message = delete_pod(pod_name, namespace, reason)
-            else:
-                message = "Missing 'pod_name' or 'namespace' for restart_pod action."
-        
-        elif action == "none":
-            success = True
-            message = "Action 'none' requested. No remediation performed."
-            
-        else:
-            message = f"Unknown action: {action}"
-
-        # Log the outcome
-        log_to_reflection_agent(plan, success, message)
-
-        if success:
-            return jsonify({"status": "success", "message": message}), 200
-        else:
-            return jsonify({"status": "error", "message": message}), 500
-
-    except Exception as e:
-        print(f"Error in /remediate endpoint: {e}")
-        # Log failure
-        log_to_reflection_agent(request.json, False, str(e))
-        return jsonify({"status": "error", "message": str(e)}), 500
+    threading.Thread(target=perform_remediation, args=(request.json,)).start()
+    return jsonify({"status": "accepted"}), 200
 
 if __name__ == '__main__':
+    print("--- STARTING REMEDIATION AGENT V3 (PASSTHROUGH) ---", flush=True)
     app.run(host='0.0.0.0', port=8080)

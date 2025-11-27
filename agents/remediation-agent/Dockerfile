@@ -7,9 +7,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY main.py .
 
-# --- THIS IS THE FIX ---
-ENV FLASK_APP=main.py
-# -----------------------
+# Force Python to print logs immediately
+ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8080
 
@@ -17,4 +16,5 @@ EXPOSE 8080
 RUN useradd -ms /bin/bash appuser
 USER appuser
 
-CMD ["flask", "run", "--host=0.0.0.0", "--port=8080"]
+# Use python directly to ensure logs flush and main block runs
+CMD ["python", "main.py"]

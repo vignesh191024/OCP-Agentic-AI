@@ -4,8 +4,9 @@ import json
 import threading
 from flask import Flask, request, jsonify
 from slack_sdk import WebClient
-from slack_sdk.models.blocks import SectionBlock, ActionsBlock, ButtonElement
+from slack_sdk.models.blocks import SectionBlock, ActionsBlock, ButtonElement, DividerBlock, HeaderBlock
 from openai import OpenAI
+from kubernetes import client, config
 
 # --- Configuration ---
 SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
@@ -21,6 +22,39 @@ openai_client = OpenAI(
     base_url="https://api.groq.com/openai/v1" 
 )
 
+# --- Kubernetes Client ---
+def load_kube_config():
+    try:
+        config.load_incluster_config()
+    except:
+        print("Warning: Could not load in-cluster config (local dev?)")
+
+load_kube_config()
+core_v1 = client.CoreV1Api()
+
+# --- Helper: Fetch Logs ---
+def get_pod_logs(pod_name, namespace):
+    """
+    Agentic Tool: Fetches the last 20 lines of logs.
+    """
+    try:
+        print(f"Investigating: Fetching logs for {pod_name}...")
+        pod = core_v1.read_namespaced_pod(name=pod_name, namespace=namespace)
+        container_name = pod.spec.containers[0].name
+        for c in pod.spec.containers:
+            if c.name == 'app':
+                container_name = 'app'
+                break
+        logs = core_v1.read_namespaced_pod_log(
+            name=pod_name, 
+            namespace=namespace, 
+            container=container_name, 
+            tail_lines=20
+        )
+        return logs
+    except Exception as e:
+        return f"(Logs unavailable: {str(e)})"
+
 # --- Diagnosis Logic ---
 def get_diagnosis_from_llm(alert_data):
     try:
@@ -29,36 +63,46 @@ def get_diagnosis_from_llm(alert_data):
         namespace = alert_data.get('commonLabels', {}).get('namespace', 'N/A')
         summary = alert_data.get('commonAnnotations', {}).get('summary', 'No summary.')
 
-        # Strict prompt to ensure the AI only chooses valid actions
-        prompt = f"""
-        Analyze the following Prometheus alert and provide a brief root cause analysis
-        and a simple, JSON-formatted remediation plan for an OpenShift cluster.
+        # 1. Autonomous Investigation
+        pod_logs = get_pod_logs(pod_name, namespace)
 
-        Alert: {alert_name}
+        # 2. Agentic Prompt
+        prompt = f"""
+        You are an expert OpenShift SRE. I need you to analyze an alert and the pod logs to recommend a fix.
+
+        ALERT DETAILS:
+        Name: {alert_name}
         Pod: {pod_name}
-        Namespace: {namespace}
         Summary: {summary}
 
-        IMPORTANT: The only allowed actions are "restart_pod" or "none".
-        If the pod needs fixing, use "restart_pod".
-        If this is a test or unknown, force the action to be "restart_pod" for demonstration purposes.
+        INVESTIGATION LOGS (Last 20 lines):
+        -----------------------------------
+        {pod_logs}
+        -----------------------------------
 
+        Based on the alert AND the logs, determine the root cause.
+        
+        DECISION LOGIC:
+        1. If logs show errors (Crash, OOM, Exception) OR alert is 'PodDown' -> Action: "restart_pod"
+        2. If logs look healthy but alert is 'HighCPU' or 'HighLoad' -> Action: "scale_up"
+        
         Example Remediation JSON:
         {{
-          "action": "restart_pod",
+          "action": "restart_pod" OR "scale_up",
           "pod_name": "{pod_name}",
           "namespace": "{namespace}",
-          "reason": "Pod is in a crash loop and requires a restart."
+          "deployment_name": "deploy-one",
+          "reason": "Logs indicate a deadlock/crash. Restarting to recover."
         }}
         
-        Provide only the root cause analysis as a string and the JSON plan.
+        Provide the analysis (referencing the logs) and the JSON plan.
         Start the analysis with "Analysis:" and the JSON with "Plan:".
         """
 
         response = openai_client.chat.completions.create(
             model="llama-3.3-70b-versatile", 
             messages=[
-                {"role": "system", "content": "You are an expert OpenShift SRE and diagnostics assistant."},
+                {"role": "system", "content": "You are a helpful SRE assistant."},
                 {"role": "user", "content": prompt}
             ]
         )
@@ -71,50 +115,55 @@ def get_diagnosis_from_llm(alert_data):
         if "Analysis:" in content and "Plan:" in content:
             analysis_part = content.split("Analysis:")[1].split("Plan:")[0].strip()
             plan_part = content.split("Plan:")[1].strip()
-            
-            # Cleanup markdown code blocks if present
             if plan_part.startswith("```json"):
                 plan_part = plan_part[7:]
             if plan_part.endswith("```"):
                 plan_part = plan_part[:-3]
-                
             analysis = analysis_part
             plan_json_str = plan_part
         
-        return analysis, json.loads(plan_json_str)
+        # Parse the JSON plan
+        plan = json.loads(plan_json_str)
+        
+        # Fallback for deployment name
+        if "deployment_name" not in plan: plan["deployment_name"] = "deploy-one"
+
+        # --- CRITICAL: Inject Data for Downstream Agents ---
+        plan['diagnosis_report'] = {
+            "analysis": analysis[:800], # Truncate for Slack limits
+            "logs": pod_logs[:500]      # Truncate for Slack limits
+        }
+
+        return analysis, plan, pod_logs
 
     except Exception as e:
         print(f"Error in LLM Diagnosis: {e}")
-        return f"Error during analysis: {e}", None
+        return f"Error: {e}", None, ""
 
-def send_slack_approval(alert_data, analysis, remediation_plan):
+def send_slack_approval(analysis, plan, logs):
     try:
-        alert_name = alert_data.get('commonLabels', {}).get('alertname', 'Unknown Alert')
-        pod_name = alert_data.get('commonLabels', {}).get('pod', 'N/A')
-        action_value = json.dumps(remediation_plan)
-
+        log_lines = logs.splitlines()
+        short_logs = "\n".join(log_lines[-5:]) if len(log_lines) > 5 else logs
+        
         blocks = [
-            SectionBlock(text=f":rotating_light: *New OpenShift Alert: {alert_name}*"),
-            SectionBlock(
-                text=f"*Analysis from AI:* {analysis}",
-                fields=[
-                    f"*Pod:* {pod_name}",
-                    f"*Namespace:* {alert_data.get('commonLabels', {}).get('namespace', 'N/A')}",
-                    f"*Summary:* {alert_data.get('commonAnnotations', {}).get('summary', 'No summary.')}",
-                    f"*Proposed Action:* {remediation_plan.get('action', 'none')}"
-                ]
-            ),
+            HeaderBlock(text=":detective: Diagnosis Agent"),
+            SectionBlock(text=f"I detected an issue. My analysis:\n>{analysis}"),
+            SectionBlock(fields=[
+                {"type": "mrkdwn", "text": f"*Target:*\n`{plan.get('pod_name')}`"},
+                {"type": "mrkdwn", "text": f"*Recommended Action:*\n`{plan.get('action')}`"}
+            ]),
+            SectionBlock(text=f"*Evidence (Logs):*\n```{short_logs}```"),
             ActionsBlock(
                 elements=[
                     ButtonElement(
-                        text="Approve Remediation",
+                        text="Approve Fix",
                         style="primary",
                         action_id="approve_remediation",
-                        value=action_value,
+                        value=json.dumps(plan),
                         confirm={
                             "title": "Confirm Action",
-                            "text": f"Are you sure you want to run: {remediation_plan.get('action')} on {pod_name}?",
-                            "confirm": "Approve",
+                            "text": f"Are you sure you want to run: {plan.get('action')}?",
+                            "confirm": "Yes, Fix It",
                             "deny": "Cancel"
                         }
                     ),
@@ -131,98 +180,61 @@ def send_slack_approval(alert_data, analysis, remediation_plan):
         slack_client.chat_postMessage(
             channel=SLACK_CHANNEL,
             blocks=blocks,
-            text=f"Alert: {alert_name} - {analysis}"
+            text=f"Alert: {plan.get('action')}"
         )
     except Exception as e:
         print(f"Error sending Slack message: {e}")
 
-# --- Background Worker for Slack Interactivity ---
-def process_interaction_background(payload):
-    """
-    This runs in a separate thread to prevent Slack timeouts (503 errors).
-    """
-    try:
-        response_url = payload.get("response_url")
-        action = payload["actions"][0]
-        action_id = action.get("action_id")
+# --- Background Worker ---
+def bg_worker(payload):
+    resp_url = payload.get("response_url")
+    action_id = payload["actions"][0]["action_id"]
+    
+    existing_blocks = payload["message"]["blocks"]
+    if existing_blocks:
+        existing_blocks.pop() # Remove buttons
 
-        if action_id == "approve_remediation":
-            remediation_plan = json.loads(action.get("value"))
-            print(f"Remediation approved. Plan: {remediation_plan}")
-            
-            try:
-                # Call the Remediation Agent
-                res = requests.post(REMEDIATION_AGENT_URL, json=remediation_plan, timeout=30)
-                res.raise_for_status()
-                
-                # Update Slack message to indicate success
-                requests.post(response_url, json={
-                    "replace_original": "true",
-                    "text": f":white_check_mark: Remediation Approved. Action '{remediation_plan.get('action')}' sent to Remediation Agent."
-                })
-            
-            except requests.exceptions.RequestException as e:
-                print(f"Error calling Remediation Agent: {e}")
-                # Update Slack message to indicate failure
-                requests.post(response_url, json={
-                    "replace_original": "true",
-                    "text": f":x: Error sending approval to Remediation Agent: {e}"
-                })
+    if action_id == "approve_remediation":
+        plan = json.loads(payload["actions"][0]["value"])
+        user = payload["user"]["username"]
 
-        elif action_id == "deny_remediation":
-            print("Remediation denied by user.")
-            requests.post(response_url, json={
-                "replace_original": "true",
-                "text": ":no_entry_sign: Remediation Denied. No action taken."
-            })
-
-    except Exception as e:
-        print(f"Error in background thread: {e}")
+        existing_blocks.append({
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f":white_check_mark: **Approved by @{user}.**\nHanding off to **Remediation Agent**..."
+            }
+        })
+        
+        requests.post(resp_url, json={"replace_original": "true", "blocks": existing_blocks})
+        
+        try:
+            requests.post(REMEDIATION_AGENT_URL, json=plan, timeout=5)
+        except: pass
+    else:
+        existing_blocks.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": ":no_entry_sign: **Request Denied.** No action taken."}
+        })
+        requests.post(resp_url, json={"replace_original": "true", "blocks": existing_blocks})
 
 # --- API Endpoints ---
 @app.route('/alert', methods=['POST'])
-def alert_webhook():
-    try:
-        data = request.json
-        print(f"Received alert: {json.dumps(data, indent=2)}")
-
-        if data.get('status') == 'firing':
-            alert = data['alerts'][0]
-            analysis, remediation_plan = get_diagnosis_from_llm(alert)
-            
-            if remediation_plan:
-                send_slack_approval(alert, analysis, remediation_plan)
-            else:
-                print(f"No remediation plan generated for {alert.get('commonLabels')}")
-
-        return jsonify({"status": "success"}), 200
-    except Exception as e:
-        print(f"Error in /alert endpoint: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+def alert():
+    data = request.json
+    if data.get('status') == 'firing':
+        analysis, plan, logs = get_diagnosis_from_llm(data['alerts'][0])
+        if plan: send_slack_approval(analysis, plan, logs)
+    return "", 200
 
 @app.route('/slack-interactive', methods=['POST'])
-def slack_interactive_endpoint():
-    """
-    Receives interactive events from Slack.
-    Spawns a background thread and returns 200 OK immediately.
-    """
-    try:
-        payload = json.loads(request.form["payload"])
-        
-        # Spawn background thread to handle the logic
-        thread = threading.Thread(target=process_interaction_background, args=(payload,))
-        thread.start()
-
-        # Respond to Slack IMMEDIATELY
-        return "", 200
-    except Exception as e:
-        print(f"Error in /slack-interactive endpoint: {e}")
-        return "", 500
+def interactive():
+    threading.Thread(target=bg_worker, args=(json.loads(request.form["payload"]),)).start()
+    return "", 200
 
 @app.route('/', methods=['GET'])
-def health_check():
-    return jsonify({"status": "healthy"}), 200
+def health(): return "", 200
 
 if __name__ == '__main__':
-    print("--- STARTING DIAGNOSIS AGENT V2 (THREADED) ---", flush=True)
+    print("--- STARTING DIAGNOSIS AGENT V7 (DATA PASSING) ---", flush=True)
     app.run(host='0.0.0.0', port=8080)

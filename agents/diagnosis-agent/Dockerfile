@@ -16,5 +16,5 @@ EXPOSE 8080
 RUN useradd -ms /bin/bash appuser
 USER appuser
 
-# --- CHANGED: Run python directly so the main block executes ---
+# Run python directly to ensure logs flush and main block runs
 CMD ["python", "main.py"]

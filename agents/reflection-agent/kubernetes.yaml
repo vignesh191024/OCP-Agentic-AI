@@ -1,4 +1,3 @@
-# --- Service for internal traffic ---
 apiVersion: v1
 kind: Service
 metadata:
@@ -11,7 +10,6 @@ spec:
       port: 8080
       targetPort: 8080
 ---
-# --- Deployment for the agent ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -28,18 +26,15 @@ spec:
     spec:
       containers:
         - name: reflection-agent
-          # Project name 'vigneshbaskar-dev' is now filled in
           image: image-registry.openshift-image-registry.svc:5000/vigneshbaskar-dev/reflection-agent:latest
           ports:
             - containerPort: 8080
           env:
-            # Assumes a secret named 'ai-secrets' exists
             - name: SLACK_BOT_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: ai-secrets
                   key: SLACK_BOT_TOKEN
-            # Assumes a configmap named 'agent-config' exists
             - name: SLACK_CHANNEL
               valueFrom:
                 configMapKeyRef:
