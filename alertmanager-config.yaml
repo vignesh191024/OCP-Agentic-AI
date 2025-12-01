@@ -1,29 +1,36 @@
-global:
-  resolve_timeout: 5m
-route:
-  group_by: ['alertname']
-  group_wait: 30s
-  group_interval: 5m
-  repeat_interval: 1h
-  # 1. The default receiver is now 'ai_diagnostics'
-  receiver: 'ai_diagnostics' 
-receivers:
-  # 2. This new receiver sends alerts to our Python agent
-  - name: 'ai_diagnostics'
-    webhook_configs:
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  labels:
+    name: alertmanager-config
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+
+    route:
+      group_by: ['alertname']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 1h
+      receiver: 'ai_diagnostics'
+
+    receivers:
+    - name: 'ai_diagnostics'
+      webhook_configs:
       - url: 'http://diagnosis-agent-svc:8080/alert'
         send_resolved: true
 
-  # 3. This is your original receiver, kept as a backup.
-  - name: 'slack-notifications'
-    slack_configs:
-    - api_url: '[https://hooks.slack.com/services/](https://hooks.slack.com/services/)...' # (This is your original placeholder)
-      channel: '#vignesh-dev'
-      send_resolved: true
+    - name: 'slack-notifications'
+      slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR_WEBHOOK_URL_HERE
+        channel: '#openshift-alerts'
+        send_resolved: true
 
-inhibit_rules:
-- source_match:
-    severity: 'critical'
-  target_match:
-    severity: 'warning'
-  equal: ['alertname', 'dev', 'instance']
+    inhibit_rules:
+    - source_match:
+        severity: 'critical'
+      target_match:
+        severity: 'warning'
+      equal: ['alertname', 'dev', 'instance']

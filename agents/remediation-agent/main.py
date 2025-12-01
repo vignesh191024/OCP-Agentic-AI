@@ -47,7 +47,10 @@ def scale_up(name, namespace):
     print(f"Scaling up deployment {name} in {namespace}...")
     scale = apps_v1.read_namespaced_deployment_scale(name, namespace)
     current_replicas = scale.spec.replicas
-    scale.spec.replicas += 1
+    if current_replicas is None: current_replicas = 0
+    
+    # Scale up by 1
+    scale.spec.replicas = current_replicas + 1
     apps_v1.replace_namespaced_deployment_scale(name, namespace, scale)
     return True, f"Scaled {name} from {current_replicas} to {scale.spec.replicas} replicas"
 
@@ -55,7 +58,12 @@ def scale_up(name, namespace):
 def perform_remediation(plan):
     action = plan.get("action")
     ns = plan.get("namespace")
-    target = plan.get("pod_name") if action == "restart_pod" else plan.get("deployment_name")
+    
+    # Intelligent Target Selection
+    if action == "scale_up":
+        target = plan.get("deployment_name")
+    else:
+        target = plan.get("pod_name")
 
     # 1. Announce to Slack
     notify_slack_start(action, target)
@@ -72,7 +80,6 @@ def perform_remediation(plan):
         success, msg = False, str(e)
 
     # 3. Handoff to Reflection Agent
-    # IMPORTANT: We pass the plan (which now contains diagnosis_report) forward!
     print(f"Work done. Handing off to Reflection Agent: {msg}")
     try:
         requests.post(REFLECTION_AGENT_URL, json={
@@ -90,5 +97,5 @@ def remediate_endpoint():
     return jsonify({"status": "accepted"}), 200
 
 if __name__ == '__main__':
-    print("--- STARTING REMEDIATION AGENT V3 (PASSTHROUGH) ---", flush=True)
+    print("--- STARTING REMEDIATION AGENT V4 (SCALE UP SUPPORT) ---", flush=True)
     app.run(host='0.0.0.0', port=8080)
