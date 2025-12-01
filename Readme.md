@@ -103,8 +103,8 @@ inhibit_rules:
 Apply the configuration to your cluster:
 
 ```
-oc create configmap alertmanager-main \
-  --from-file=alertmanager.yml=alert-manager-config.yml \
+oc create configmap alertmanager-config \
+  --from-file=alertmanager.yml=alertmanager-config.yaml \
   -o yaml --dry-run=client | oc replace -f -
 ```
 
