@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: remediation-agent-svc
+spec:
+  selector:
+    app: remediation-agent
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: remediation-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: remediation-agent
+  template:
+    metadata:
+      labels:
+        app: remediation-agent
+    spec:
+      serviceAccountName: remediation-agent-sa
+      containers:
+        - name: remediation-agent
+          image: image-registry.openshift-image-registry.svc:5000/vigneshbaskar-dev/remediation-agent:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SLACK_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ai-secrets
+                  key: SLACK_BOT_TOKEN
+            - name: SLACK_CHANNEL
+              valueFrom:
+                configMapKeyRef:
+                  name: agent-config
+                  key: SLACK_CHANNEL
+            - name: REFLECTION_AGENT_URL
+              value: "http://reflection-agent-svc:8080/log"

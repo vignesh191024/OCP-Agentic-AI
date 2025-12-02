@@ -15,7 +15,7 @@ data:
       alertmanagers:
         - static_configs:
             - targets:
-                - "172.30.107.173:9093"   # Using ClusterIP for Alertmanager
+                - "alertmanager:9093"   # Using ClusterIP for Alertmanager
 
     # Load rules once and periodically evaluate them according to the global 'evaluation_interval'
     rule_files:
@@ -33,13 +33,13 @@ data:
       # Monitor deploy-one application
       - job_name: "deploy-one"
         static_configs:
-          - targets: ["172.30.20.193:9100"]
+          - targets: ["deploy-one:9100"]
             labels:
               app: "deploy-one"
 
       # Monitor deploy-two application
       - job_name: "deploy-two"
         static_configs:
-          - targets: ["172.30.46.144:9100"]
+          - targets: ["deploy-two:9100"]
             labels:
               app: "deploy-two"
