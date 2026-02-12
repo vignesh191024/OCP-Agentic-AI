@@ -65,7 +65,7 @@ def get_diagnosis_from_llm(alert_data):
         annotations = alert_data.get('annotations', {})
 
         alert_name = labels.get('alertname', 'Unknown Alert')
-        namespace = labels.get('namespace', 'vigneshbaskar-dev') 
+        namespace = labels.get('namespace', 'parashuram-n-dev') 
         
         # --- SMART NAME DETECTION ---
         # 1. Try explicit labels

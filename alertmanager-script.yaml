@@ -2,7 +2,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: fetch-alerted-pod-logs
-  namespace: vigneshbaskar-dev
+  namespace: parashuram-n-dev
 spec:
   template:
     spec:

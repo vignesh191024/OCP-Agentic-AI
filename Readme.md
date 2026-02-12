@@ -9,7 +9,7 @@ It uses a multi-agent system — **Diagnosis, Remediation, and Reflection** — 
 
 Before you begin, ensure you have:
 
-* ✅ **OpenShift Cluster:** Access to a project named `vigneshbaskar-dev`
+* ✅ **OpenShift Cluster:** Access to a project named `parashuram-n-dev`
 * 💬 **Slack Workspace:** A channel named `#openshift-alerts`
 * 🧰 **CLI Tools:** `oc` (OpenShift CLI) and `git` installed
 
@@ -183,7 +183,7 @@ The agents need permission to modify resources in your namespace.
 
 ```bash
 # Allow the remediation agent to delete pods and scale deployments
-oc adm policy add-role-to-user edit -z remediation-agent-sa -n vigneshbaskar-dev
+oc adm policy add-role-to-user edit -z remediation-agent-sa -n parashuram-n-dev
 ```
 
 ---

@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: prometheus
-  namespace: vigneshbaskar-dev
+  namespace: parashuram-n-dev
   labels:
     app: prometheus
 spec:

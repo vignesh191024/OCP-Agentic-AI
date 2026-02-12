@@ -27,7 +27,7 @@ spec:
       serviceAccountName: remediation-agent-sa
       containers:
         - name: remediation-agent
-          image: image-registry.openshift-image-registry.svc:5000/vigneshbaskar-dev/remediation-agent:latest
+          image: image-registry.openshift-image-registry.svc:5000/parashuram-n-dev/remediation-agent:latest
           ports:
             - containerPort: 8080
           env:

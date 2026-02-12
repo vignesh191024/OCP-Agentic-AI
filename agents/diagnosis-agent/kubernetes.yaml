@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: diagnosis-agent
-          image: image-registry.openshift-image-registry.svc:5000/vigneshbaskar-dev/diagnosis-agent:latest
+          image: image-registry.openshift-image-registry.svc:5000/parashuram-n-dev/diagnosis-agent:latest
           ports:
             - containerPort: 8080
           env:

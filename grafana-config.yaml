@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: grafana-config
-  namespace: vigneshbaskar-dev
+  namespace: parashuram-n-dev
 data:
   grafana.ini: |
     [server]

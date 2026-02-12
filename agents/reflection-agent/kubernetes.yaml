@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: reflection-agent
-          image: image-registry.openshift-image-registry.svc:5000/vigneshbaskar-dev/reflection-agent:latest
+          image: image-registry.openshift-image-registry.svc:5000/parashuram-n-dev/reflection-agent:latest
           ports:
             - containerPort: 8080
           env:

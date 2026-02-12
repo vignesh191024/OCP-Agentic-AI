@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: prometheus-alert-rules
-  namespace: vigneshbaskar-dev
+  namespace: parashuram-n-dev
 data:
   alert.rules.yml: |
     groups:
