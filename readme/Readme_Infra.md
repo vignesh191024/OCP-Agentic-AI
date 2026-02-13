@@ -94,7 +94,12 @@ Verify Pods and Services:
 oc get pods -n <namespace>
 oc get svc -n <namespace>
 
-5️⃣ Check Prometheus Targets
+6️⃣ Check that the Prometheus targets are scraping successfully; it should look like the example below.
+
+<img width="2540" height="678" alt="image" src="https://github.com/user-attachments/assets/bc6a77d8-0e03-4a8f-aedc-f25b36fd7379" />
+
+
+
 
 
 
