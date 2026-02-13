@@ -21,7 +21,7 @@ Before you begin, ensure you have:
 
 ---
 
-## 🚀 Deployment Instructions
+## 🚀 Folder Instructions
 
 All infrastructure YAML files are located in the `infra/` directory:
 
@@ -32,6 +32,8 @@ infra/
 └── deploy2-deployment.yaml
 
 ---
+
+## 💻 Deployment Instructions
 
 1️⃣ Switch to Your Project / Namespace
 
