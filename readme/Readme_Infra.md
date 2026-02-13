@@ -33,11 +33,12 @@ infra/
 
 ---
 
-
 1️⃣ Switch to Your Project / Namespace
 
 ```bash
 oc project <namespace>
+
+---
 
 2️⃣ Deploy Alertmanager
 
