@@ -32,13 +32,11 @@ infra/
 └── deploy2-deployment.yaml
 
 ---
-
 ## 💻 Deployment Instructions
 
 📋 Follow below steps:
----
-1️⃣ Switch to Your Project / Namespace
 
+ 1️⃣ Switch to Your Project / Namespace
 ```bash
 oc project <namespace>
 
