@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deploy-one
+  namespace: vigneshbaskar-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: deploy-one
+  template:
+    metadata:
+      labels:
+        app: deploy-one
+    spec:
+      serviceAccountName: default
+      volumes:
+        - name: applogs
+          emptyDir: {}
+      containers:
+        # 🧠 Main Application Container
+        - name: app
+          image: prom/node-exporter:latest
+          ports:
+            - containerPort: 9100
+          volumeMounts:
+            - name: applogs
+              mountPath: /var/log/app-logs
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              # Start Node Exporter in background
+              /bin/node_exporter &
+              
+              # Log generator - outputs to both stdout and file (real pod logs)
+              while true; do
+                msg="$(date) Hello from deploy-one"
+                echo "$msg" | tee -a /var/log/app-logs/app.log
+                sleep 5
+              done
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: deploy-one-metrics
+  namespace: vigneshbaskar-dev
+spec:
+  selector:
+    app: deploy-one
+  ports:
+    - name: metrics
+      port: 9100
+      targetPort: 9100
+  type: ClusterIP

@@ -1,0 +1,157 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus-sa
+  namespace: vigneshbaskar-dev
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-alert-rules
+  namespace: vigneshbaskar-dev
+data:
+  alert.rules.yml: |
+    groups:
+      - name: pod-monitoring
+        rules:
+          - alert: PodDown
+            expr: up == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Pod {{ $labels.app }} is down"
+              description: "Target {{ $labels.instance }} is not reporting metrics for more than 1 minute."
+
+          - alert: HighCPUUsage
+            expr: rate(process_cpu_seconds_total[1m]) > 0.5
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High CPU usage in {{ $labels.app }}"
+              description: "CPU usage is above 50% for 2 minutes."
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: vigneshbaskar-dev
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 30s
+      evaluation_interval: 30s
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+                - alertmanager:9093
+
+    rule_files:
+      - /etc/prometheus/rules/alert.rules.yml
+
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets: ["localhost:9090"]
+            labels:
+              app: prometheus
+
+      - job_name: deploy-one
+        static_configs:
+          - targets: ["deploy-one-metrics.vigneshbaskar-dev.svc.cluster.local:9100"]
+            labels:
+              app: deploy-one
+
+      - job_name: deploy-two
+        static_configs:
+          - targets: ["deploy-two-metrics.vigneshbaskar-dev.svc.cluster.local:9100"]
+            labels:
+              app: deploy-two
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: vigneshbaskar-dev
+  labels:
+    app: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      serviceAccountName: prometheus-sa
+      containers:
+        - name: prometheus
+          image: prom/prometheus:latest
+          args:
+            - --config.file=/etc/prometheus/config/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --web.enable-lifecycle
+          ports:
+            - containerPort: 9090
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          volumeMounts:
+            - name: prometheus-storage
+              mountPath: /prometheus
+            - name: rules-volume
+              mountPath: /etc/prometheus/rules
+            - name: prometheus-config-volume
+              mountPath: /etc/prometheus/config
+      volumes:
+        - name: prometheus-storage
+          emptyDir: {}
+        - name: rules-volume
+          configMap:
+            name: prometheus-alert-rules
+        - name: prometheus-config-volume
+          configMap:
+            name: prometheus-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: vigneshbaskar-dev
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - name: web
+      port: 9090
+      targetPort: 9090
+  type: ClusterIP
+
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: prometheus
+  namespace: vigneshbaskar-dev
+spec:
+  to:
+    kind: Service
+    name: prometheus
+  port:
+    targetPort: web
+  tls:
+    termination: edge

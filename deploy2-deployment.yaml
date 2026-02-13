@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deploy-two
+  namespace: vigneshbaskar-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: deploy-two
+  template:
+    metadata:
+      labels:
+        app: deploy-two
+    spec:
+      volumes:
+        - name: applogs
+          emptyDir: {}
+      containers:
+        - name: app
+          image: prom/node-exporter:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 9100
+          volumeMounts:
+            - name: applogs
+              mountPath: /var/log/app-logs
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              # Start Node Exporter in the background for Prometheus scraping
+              /bin/node_exporter &
+
+              # Generate sample log entries
+              while true; do
+                echo "$(date) Hello from deploy-two" >> /var/log/app-logs/app.log
+                sleep 5
+              done
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: deploy-two-metrics
+  namespace: vigneshbaskar-dev
+  labels:
+    app: deploy-two
+spec:
+  type: ClusterIP
+  selector:
+    app: deploy-two
+  ports:
+    - name: metrics
+      port: 9100
+      targetPort: 9100
+      protocol: TCP
