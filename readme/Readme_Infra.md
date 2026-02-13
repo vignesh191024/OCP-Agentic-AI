@@ -36,7 +36,7 @@ infra/
 ## 💻 Deployment Instructions
 
 📋 Follow below steps:
-
+---
 1️⃣ Switch to Your Project / Namespace
 
 ```bash
