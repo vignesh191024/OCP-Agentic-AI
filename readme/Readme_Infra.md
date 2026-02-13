@@ -35,12 +35,12 @@ infra/
 
 ## 💻 Deployment Instructions
 
+📋 Follow below steps:
+
 1️⃣ Switch to Your Project / Namespace
 
 ```bash
 oc project <namespace>
-
----
 
 2️⃣ Deploy Alertmanager
 
@@ -94,9 +94,11 @@ Verify Pods and Services:
 oc get pods -n <namespace>
 oc get svc -n <namespace>
 
-6️⃣ Check that the Prometheus targets are scraping successfully; it should look like the example below.
+6️⃣ Check that the Prometheus targets are scraping successfully.
 
-<img width="2540" height="678" alt="image" src="https://github.com/user-attachments/assets/bc6a77d8-0e03-4a8f-aedc-f25b36fd7379" />
+6.1 Scale down one of the deployment pods (deploy-one or deploy-two).
+6.2 Wait for 2 minutes and refresh the Prometheus UI. You should now see the alert in the Prometheus UI.
+6.3 Wait for 30 seconds and refresh the Alertmanager UI. You should now see the alert in the Alertmanager UI.
 
 
 
