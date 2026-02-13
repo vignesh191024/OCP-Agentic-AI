@@ -182,8 +182,16 @@ cd ../..
 The agents need permission to modify resources in your namespace.
 
 ```bash
-# Allow the remediation agent to delete pods and scale deployments
-oc adm policy add-role-to-user edit -z remediation-agent-sa -n parashuram-n-dev
+# 1. Create ServiceAccounts for all agents
+oc create sa diagnosis-agent-sa -n parashuram-n-dev
+oc create sa remediation-agent-sa -n parashuram-n-dev
+oc create sa reflection-agent-sa -n parashuram-n-dev
+
+# 2. Grant 'edit' role to the ServiceAccounts
+# This allows agents to read logs, modify scales, and delete pods
+oc policy add-role-to-user edit system:serviceaccount:parashuram-n-dev:diagnosis-agent-sa -n parashuram-n-dev
+oc policy add-role-to-user edit system:serviceaccount:parashuram-n-dev:remediation-agent-sa -n parashuram-n-dev
+oc policy add-role-to-user edit system:serviceaccount:parashuram-n-dev:reflection-agent-sa -n parashuram-n-dev
 ```
 
 ---
