@@ -24,19 +24,36 @@ spec:
       labels:
         app: reflection-agent
     spec:
+      serviceAccountName: reflection-agent-sa
       containers:
         - name: reflection-agent
           image: image-registry.openshift-image-registry.svc:5000/parashuram-n-dev/reflection-agent:latest
           ports:
             - containerPort: 8080
           env:
+            - name: MY_NAMESPACE # CRITICAL FIX
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             - name: SLACK_BOT_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: ai-secrets
                   key: SLACK_BOT_TOKEN
+            - name: PYTHONUNBUFFERED
+              value: "1"
             - name: SLACK_CHANNEL
               valueFrom:
                 configMapKeyRef:
                   name: agent-config
                   key: SLACK_CHANNEL
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10

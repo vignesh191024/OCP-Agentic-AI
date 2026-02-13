@@ -40,7 +40,7 @@ def verify_fix(plan, status, message):
     time.sleep(15)
     
     action = plan.get('action')
-    ns = plan.get('namespace', 'default')
+    ns = plan.get('namespace') or os.environ.get("MY_NAMESPACE", "parashuram-n-dev")
     
     # Extract diagnosis context
     diagnosis_data = plan.get('diagnosis_report', {})
@@ -117,6 +117,11 @@ def log_endpoint():
     except Exception as e:
         print(f"Error in /log endpoint: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+# Add this before if __name__ == '__main__':
+@app.route('/', methods=['GET'])
+def health_check():
+    return "Reflection Agent Active", 200
 
 if __name__ == '__main__':
     print("--- STARTING REFLECTION AGENT V5 (ROBUST VERIFICATION) ---", flush=True)

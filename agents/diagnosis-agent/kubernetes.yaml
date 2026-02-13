@@ -24,12 +24,17 @@ spec:
       labels:
         app: diagnosis-agent
     spec:
+      serviceAccountName: diagnosis-agent-sa
       containers:
         - name: diagnosis-agent
           image: image-registry.openshift-image-registry.svc:5000/parashuram-n-dev/diagnosis-agent:latest
           ports:
             - containerPort: 8080
           env:
+            - name: MY_NAMESPACE # THE DYNAMIC FIX
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             - name: SLACK_BOT_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -40,6 +45,8 @@ spec:
                 secretKeyRef:
                   name: ai-secrets
                   key: GROQ_API_KEY
+            - name: PYTHONUNBUFFERED
+              value: "1"
             - name: SLACK_CHANNEL
               valueFrom:
                 configMapKeyRef:
@@ -52,10 +59,8 @@ spec:
               path: /
               port: 8080
             initialDelaySeconds: 15
-            periodSeconds: 20
           readinessProbe:
             httpGet:
               path: /
               port: 8080
             initialDelaySeconds: 5
-            periodSeconds: 10

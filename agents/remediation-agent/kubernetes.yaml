@@ -31,11 +31,17 @@ spec:
           ports:
             - containerPort: 8080
           env:
+            - name: MY_NAMESPACE # CRITICAL FIX
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             - name: SLACK_BOT_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: ai-secrets
                   key: SLACK_BOT_TOKEN
+            - name: PYTHONUNBUFFERED
+              value: "1"
             - name: SLACK_CHANNEL
               valueFrom:
                 configMapKeyRef:
@@ -43,3 +49,13 @@ spec:
                   key: SLACK_CHANNEL
             - name: REFLECTION_AGENT_URL
               value: "http://reflection-agent-svc:8080/log"
+          livenessProbe:
+            httpGet:
+              path: / # Using a valid endpoint or simple health check
+              port: 8080
+            initialDelaySeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10

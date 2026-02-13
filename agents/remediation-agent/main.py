@@ -57,7 +57,7 @@ def scale_up(name, namespace):
 # --- Main Logic ---
 def perform_remediation(plan):
     action = plan.get("action")
-    ns = plan.get("namespace")
+    ns = plan.get("namespace") or os.environ.get("MY_NAMESPACE", "parashuram-n-dev")
     
     # Intelligent Target Selection
     if action == "scale_up":
@@ -95,6 +95,11 @@ def perform_remediation(plan):
 def remediate_endpoint():
     threading.Thread(target=perform_remediation, args=(request.json,)).start()
     return jsonify({"status": "accepted"}), 200
+
+# Add this before if __name__ == '__main__':
+@app.route('/', methods=['GET'])
+def health_check():
+    return "Remediation Agent Active", 200
 
 if __name__ == '__main__':
     print("--- STARTING REMEDIATION AGENT V4 (SCALE UP SUPPORT) ---", flush=True)
