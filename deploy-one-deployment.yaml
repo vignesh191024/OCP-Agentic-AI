@@ -41,30 +41,3 @@ spec:
                 echo "$msg" | tee -a /var/log/app-logs/app.log
                 sleep 5
               done
-
-        # 🚀 Promtail Sidecar Container
-        - name: promtail
-          image: grafana/promtail:3.1.0
-          args:
-            - -config.file=/etc/promtail/config/promtail.yaml
-          env:
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-          volumeMounts:
-            - name: promtail-config
-              mountPath: /etc/promtail/config
-            - name: applogs
-              mountPath: /var/log/app-logs
-          resources:
-            requests:
-              cpu: 50m
-              memory: 128Mi
-            limits:
-              cpu: 500m
-              memory: 512Mi
